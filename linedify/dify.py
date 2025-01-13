@@ -21,7 +21,7 @@ class DifyAgent:
         self.verbose = verbose
         self.api_key = api_key
         self.base_url = base_url
-        self.user = user
+        self.default_user = user
         self.type = type
         self.response_processors = {
             DifyType.Agent: self.process_agent_response,
@@ -31,17 +31,17 @@ class DifyAgent:
         }
         self.conversation_ids = {}
 
-    async def make_payloads(self, text: str, image_bytes: bytes = None, inputs: dict = None) -> Dict:
+    async def make_payloads(self, *, text: str, image_bytes: bytes = None, inputs: dict = None, user: str = None) -> Dict:
         payloads = {
             "inputs": inputs or {},
             "query": text,
             "response_mode": "streaming" if self.type == DifyType.Agent else "blocking",
-            "user": self.user,
+            "user": user or self.default_user,
             "auto_generate_name": False,
         }
 
         if image_bytes:
-            uploaded_image_id = await self.upload_image(image_bytes)
+            uploaded_image_id = await self.upload_image(image_bytes, user=user)
             if uploaded_image_id:
                 payloads["files"] = [{
                     "type": "image",
@@ -53,13 +53,13 @@ class DifyAgent:
         
         return payloads
 
-    async def upload_image(self, image_bytes: str) -> str:
+    async def upload_image(self, image_bytes: str, user: str = None) -> str:
         form_data = aiohttp.FormData()
         form_data.add_field("file",
             image_bytes,
             filename="image.png",
             content_type="image/png")
-        form_data.add_field('user', self.user)
+        form_data.add_field('user', user or self.default_user)
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -127,12 +127,12 @@ class DifyAgent:
 
         raise Exception("Workflow is not supported for now.")
 
-    async def invoke(self, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, start_as_new: bool = False) -> Tuple[str, Dict]:
+    async def invoke(self, *, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, user: str = None, start_as_new: bool = False) -> Tuple[str, Dict]:
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
 
-        payloads = await self.make_payloads(text, image, inputs)
+        payloads = await self.make_payloads(text=text, image_bytes=image, inputs=inputs, user=user)
 
         if conversation_id and not start_as_new:
             payloads["conversation_id"] = conversation_id

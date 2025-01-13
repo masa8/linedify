@@ -155,7 +155,7 @@ class LineDifyIntegrator:
         conversation_session = None
         try:
             if self.verbose:
-                logger.info(f"Request from LINE: {json.dumps(event.as_json_dict(), ensure_ascii=False)}")
+                logger.info(f"Request from LINE: {json.dumps(event.to_dict(), ensure_ascii=False)}")
 
             parse_message = self._message_parsers.get(event.message.type)
             if not parse_message:
@@ -166,10 +166,11 @@ class LineDifyIntegrator:
             inputs = await self._make_inputs(conversation_session)
 
             conversation_id, text, data = await self.dify_agent.invoke(
-                conversation_session.conversation_id,
+                conversation_id=conversation_session.conversation_id,
                 text=request_text,
                 image=image_bytes,
-                inputs=inputs
+                inputs=inputs,
+                user=event.source.user_id
             )
 
             conversation_session.conversation_id = conversation_id
@@ -178,7 +179,7 @@ class LineDifyIntegrator:
             response_messages = await self._to_reply_message(text, data, conversation_session)
 
             if self.verbose:
-                logger.info(f"Response to LINE: {', '.join([json.dumps(m.as_json_dict(), ensure_ascii=False) for m in response_messages])}")
+                logger.info(f"Response to LINE: {', '.join([json.dumps(m.to_dict(), ensure_ascii=False) for m in response_messages])}")
 
             return response_messages
 
