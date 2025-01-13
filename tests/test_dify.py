@@ -19,7 +19,7 @@ def image_bytes():
 
 @pytest.mark.asyncio
 async def test_make_payloads_without_image(dify_agent):
-    payloads = await dify_agent.make_payloads("test query")
+    payloads = await dify_agent.make_payloads(text="test query")
     expected_payloads = {
         "inputs": {},
         "query": "test query",
@@ -32,7 +32,7 @@ async def test_make_payloads_without_image(dify_agent):
 
 @pytest.mark.asyncio
 async def test_make_payloads_with_image(dify_agent, image_bytes):
-    payloads = await dify_agent.make_payloads("test query", image_bytes=image_bytes)
+    payloads = await dify_agent.make_payloads(text="test query", image_bytes=image_bytes)
     expected_payloads_without_image = {
         "inputs": {},
         "query": "test query",

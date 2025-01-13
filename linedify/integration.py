@@ -83,6 +83,7 @@ class LineDifyIntegrator:
         self._make_inputs = self.make_inputs_default
         self._to_reply_message = self.to_reply_message_default
         self._to_error_message = self.to_error_message_default
+        self._on_message_handling_end = self.on_message_handling_end_default
 
     # Decorators
     def event(self, event_type=None):
@@ -114,6 +115,10 @@ class LineDifyIntegrator:
 
     def to_error_message(self, func):
         self._to_error_message = func
+        return func
+
+    def on_message_handling_end(self, func):
+        self._on_message_handling_end = func
         return func
 
     # Processors
@@ -155,7 +160,7 @@ class LineDifyIntegrator:
         conversation_session = None
         try:
             if self.verbose:
-                logger.info(f"Request from LINE: {json.dumps(event.as_json_dict(), ensure_ascii=False)}")
+                logger.info(f"Request from LINE: {json.dumps(event.to_dict(), ensure_ascii=False)}")
 
             parse_message = self._message_parsers.get(event.message.type)
             if not parse_message:
@@ -166,10 +171,11 @@ class LineDifyIntegrator:
             inputs = await self._make_inputs(conversation_session)
 
             conversation_id, text, data = await self.dify_agent.invoke(
-                conversation_session.conversation_id,
+                conversation_id=conversation_session.conversation_id,
                 text=request_text,
                 image=image_bytes,
-                inputs=inputs
+                inputs=inputs,
+                user=conversation_session.user_id
             )
 
             conversation_session.conversation_id = conversation_id
@@ -178,7 +184,9 @@ class LineDifyIntegrator:
             response_messages = await self._to_reply_message(text, data, conversation_session)
 
             if self.verbose:
-                logger.info(f"Response to LINE: {', '.join([json.dumps(m.as_json_dict(), ensure_ascii=False) for m in response_messages])}")
+                logger.info(f"Response to LINE: {', '.join([json.dumps(m.to_dict(), ensure_ascii=False) for m in response_messages])}")
+
+            await self._on_message_handling_end(conversation_session, request_text, text, data)
 
             return response_messages
 
@@ -221,6 +229,10 @@ class LineDifyIntegrator:
 
     async def to_error_message_default(self, event: Event, ex: Exception, session: ConversationSession = None) -> List[Message]:
         return [TextMessage(text="Error 🥲")]
+
+    async def on_message_handling_end_default(self, conversation_session: ConversationSession, request_text: str, response_text: str, response_data: any):
+        if self.verbose:
+            logger.info(f"on_message_handling_end_default: @{conversation_session.user_id} ({conversation_session.user_id}): {request_text} -> {response_text}")
 
     # Application lifecycle
     async def shutdown(self):
