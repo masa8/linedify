@@ -235,9 +235,120 @@ line_dify = LineDify(
 ```
 
 
+## 📜 Long-Term Memory
+
+Make function to store message histories. Here is the example for [Zep](https://www.getzep.com):
+
+```sh
+pip install zep-python
+```
+
+```python
+import logging
+from zep_python.client import AsyncZep
+from zep_python.errors import NotFoundError
+from zep_python.types import Message
+
+logger = logging.getLogger(__name__)
+
+class ZepIntegrator:
+    def __init__(self, *, api_key: str, base_url: str, cache_size: int = 1000, debug: bool = False):
+        self.zep_client = AsyncZep(
+            api_key=api_key,
+            base_url=base_url
+        )
+        self.cache_size = cache_size
+        self.user_ids = []
+        self.session_ids = []
+        self.debug = debug
+
+    async def add_user(self, user_id: str):
+        try:
+            user = await self.zep_client.user.get(
+                user_id=user_id
+            )
+            if self.debug:
+                logger.info(f"User found: {user}")
+        except NotFoundError:
+            user = await self.zep_client.user.add(
+                user_id=user_id
+            )
+            if self.debug:
+                logger.info(f"User created: {user}")
+
+        self.user_ids.append(user_id)
+        while len(self.user_ids) > self.cache_size:
+            self.user_ids.pop(0)
+
+    async def add_session(self, user_id: str, session_id: str):
+        try:
+            session = await self.zep_client.memory.get_session(
+                session_id=session_id
+            )
+            if self.debug:
+                logger.info(f"Session found: {session}")
+        except NotFoundError:
+            session = await self.zep_client.memory.add_session(
+                session_id=session_id,
+                user_id=user_id,
+            )
+            if self.debug:
+                logger.info(f"Session created: {session}")
+
+        self.session_ids.append(session_id)
+        while len(self.session_ids) > self.cache_size:
+            self.session_ids.pop(0)
+
+    async def add_messages(self, user_id: str, session_id: str, request_text: str, response_text: str):
+        if not user_id or not session_id or (not request_text and not response_text):
+            return
+
+        if user_id not in self.user_ids:
+            await self.add_user(user_id)
+
+        if session_id not in self.session_ids:
+            await self.add_session(user_id, session_id)
+
+        # Add messages
+        messages = []
+        if request_text:
+            messages.append(Message(role_type="user", content=request_text))
+        if response_text:
+            messages.append(Message(role_type="assistant", content=response_text))
+
+        if messages:
+            await self.zep_client.memory.add(session_id=session_id, messages=messages)
+```
+
+
+Call `add_messages` at the end of processing message event.
+
+```python
+zep = ZepIntegrator(
+    api_key="YOUR_ZEP_API_KEY",
+    base_url="ZEP_BASE_URL"
+)
+
+@line_dify.on_message_handling_end
+async def on_message_handling_end(
+    conversation_session: ConversationSession,
+    request_text: str,
+    response_text: str,
+    response_data: any
+):
+    await zep.add_messages(
+        conversation_session.user_id,
+        conversation_session.conversation_id,
+        request_text,
+        response_text
+    )
+```
+
+Then you can retrieve the facts about the user from wherever you like, including Dify.
+
+
 ## ⚖️ License
 
 linedify is distributed under the Apache v2 license.
 
 (c)uezo, made with big ❤️ in Tokyo.
-
