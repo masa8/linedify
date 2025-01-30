@@ -51,9 +51,9 @@ class ConversationSessionStore:
         db_session = docs[0].to_dict()
         session_obj = ConversationSession.from_dict(db_session)
 
-        # セッションがタイムアウトしている場合は新規作成
-        if self.timeout > 0 and (now - session_obj.updated_at).total_seconds() > self.timeout:
-            return ConversationSession(user_id)
+        # セッションがタイムアウトしている場合は新規作成 No need to time out for this trainer.
+        #if self.timeout > 0 and (now - session_obj.updated_at).total_seconds() > self.timeout:
+        #    return ConversationSession(user_id)
 
         return session_obj
 
