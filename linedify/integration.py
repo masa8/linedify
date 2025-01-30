@@ -23,7 +23,7 @@ from linebot.v3.webhooks import (
 )
 
 from .dify import DifyAgent, DifyType
-from .session_firestore import ConversationSession, ConversationSessionStore  # Firestore 版をインポート
+from .session import ConversationSession, ConversationSessionStore  # Firestore 版をインポート
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
