@@ -23,8 +23,7 @@ from linebot.v3.webhooks import (
 )
 
 from .dify import DifyAgent, DifyType
-from .session import ConversationSession, ConversationSessionStore
-
+from .session_firestore import ConversationSession, ConversationSessionStore  # Firestore 版をインポート
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -38,7 +37,6 @@ class LineDifyIntegrator:
         dify_base_url: str,
         dify_user: str,
         dify_type: DifyType = DifyType.Agent,
-        session_db_url: str = "sqlite:///sessions.db",
         session_timeout: float = 3600.0,
         verbose: bool = False
     ) -> None:
@@ -66,10 +64,8 @@ class LineDifyIntegrator:
             "location": self.parse_location_message
         }
 
-        self.conversation_session_store = ConversationSessionStore(
-            db_url=session_db_url,
-            timeout=session_timeout
-        )
+        # Firestore の ConversationSessionStore を使用
+        self.conversation_session_store = ConversationSessionStore(timeout=session_timeout)
 
         # Dify
         self.dify_agent = DifyAgent(
@@ -85,43 +81,6 @@ class LineDifyIntegrator:
         self._to_error_message = self.to_error_message_default
         self._on_message_handling_end = self.on_message_handling_end_default
 
-    # Decorators
-    def event(self, event_type=None):
-        def decorator(func):
-            if event_type is None:
-                self._default_event_handler = func
-            else:
-                self._event_handlers[event_type] = func
-            return func
-        return decorator
-
-    def parse_message(self, message_type):
-        def decorator(func):
-            self._message_parsers[message_type] = func
-            return func
-        return decorator
-
-    def validate_event(self, func):
-        self._validate_event = func
-        return func
-
-    def make_inputs(self, func):
-        self._make_inputs = func
-        return func
-
-    def to_reply_message(self, func):
-        self._to_reply_message = func
-        return func
-
-    def to_error_message(self, func):
-        self._to_error_message = func
-        return func
-
-    def on_message_handling_end(self, func):
-        self._on_message_handling_end = func
-        return func
-
-    # Processors
     async def process_request(self, request_body: str, signature: str):
         events = self.webhook_parser.parse(request_body, signature)
         for event in events:
@@ -155,7 +114,6 @@ class LineDifyIntegrator:
             logger.error(f"Error at process_event: {ex}\n{format_exc()}")
             return await self._to_error_message(event, ex)
 
-    # Event handlers
     async def handle_message_event(self, event: MessageEvent):
         conversation_session = None
         try:
@@ -203,21 +161,6 @@ class LineDifyIntegrator:
     async def event_handler_default(self, event: Event):
         logger.warning(f"Unhandled event type: {event.type}")
 
-    # Message parsers
-    async def parse_text_message(self, message: TextMessageContent) -> Tuple[str, bytes]:
-        return message.text, None
-
-    async def parse_image_message(self, message: ImageMessageContent) -> Tuple[str, bytes]:
-        return "", await self.line_api_blob.get_message_content(message.id)
-
-    async def parse_sticker_message(self, message: StickerMessageContent) -> Tuple[str, bytes]:
-        sticker_keywords = ", ".join([k for k in message.keywords])
-        return f"You received a sticker from user in messenger app: {sticker_keywords}", None
-
-    async def parse_location_message(self, message: LocationMessageContent) -> Tuple[str, bytes]:
-        return f"You received a location info from user in messenger app:\n    - address: {message.address}\n    - latitude: {message.latitude}\n    - longitude: {message.longitude}", None
-
-    # Defaults
     async def validate_event_default(self, Event) -> Union[None, List[Message]]:
         return None
 
@@ -234,6 +177,5 @@ class LineDifyIntegrator:
         if self.verbose:
             logger.info(f"on_message_handling_end_default: @{conversation_session.user_id} ({conversation_session.user_id}): {request_text} -> {response_text}")
 
-    # Application lifecycle
     async def shutdown(self):
         await self.line_api_client.close()
