@@ -6,6 +6,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 class ConversationSession:
     def __init__(self, user_id: str, conversation_id: str = None, updated_at: datetime = None) -> None:
+        print(user_id + ' ' + conversation_id)
         self.user_id = user_id
         self.conversation_id = conversation_id
         self.updated_at = updated_at or datetime.now(timezone.utc)
