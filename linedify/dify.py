@@ -27,7 +27,7 @@ class DifyAgent:
             DifyType.Agent: self.process_agent_response,
             DifyType.Chatbot: self.process_chatbot_response,
             DifyType.TextGenerator: self.process_textgenerator_response,
-            DifyType.Workflow: self.process_workflow_response
+            DifyType.Workflow: self.process_chatbot_response, #self.process_workflow_response
         }
         self.conversation_ids = {}
 
