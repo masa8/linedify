@@ -61,6 +61,14 @@ class ConversationSessionStore:
         if not session.user_id:
             raise ValueError("user_id is required")
 
+        # Check if user_id already exists
+        query = self.collection.where(filter=FieldFilter(field_path="user_id", op_string="==", value=session.user_id)).limit(1)
+        docs = await query.get()
+
+        # If user_id exists, do nothing
+        if docs:
+            return  # Simply exit
+            
         session.updated_at = datetime.now(timezone.utc)
         doc_ref = self.collection.document(f"{session.user_id}_{session.conversation_id}")
         await doc_ref.set(session.to_dict())
