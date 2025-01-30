@@ -161,6 +161,21 @@ class LineDifyIntegrator:
     async def event_handler_default(self, event: Event):
         logger.warning(f"Unhandled event type: {event.type}")
 
+    # Message parsers
+    async def parse_text_message(self, message: TextMessageContent) -> Tuple[str, bytes]:
+        return message.text, None
+
+    async def parse_image_message(self, message: ImageMessageContent) -> Tuple[str, bytes]:
+        return "", await self.line_api_blob.get_message_content(message.id)
+
+    async def parse_sticker_message(self, message: StickerMessageContent) -> Tuple[str, bytes]:
+        sticker_keywords = ", ".join([k for k in message.keywords])
+        return f"You received a sticker from user in messenger app: {sticker_keywords}", None
+
+    async def parse_location_message(self, message: LocationMessageContent) -> Tuple[str, bytes]:
+        return f"You received a location info from user in messenger app:\n    - address: {message.address}\n    - latitude: {message.latitude}\n    - longitude: {message.longitude}", None
+
+    # Defaults
     async def validate_event_default(self, Event) -> Union[None, List[Message]]:
         return None
 
@@ -177,5 +192,6 @@ class LineDifyIntegrator:
         if self.verbose:
             logger.info(f"on_message_handling_end_default: @{conversation_session.user_id} ({conversation_session.user_id}): {request_text} -> {response_text}")
 
+    # Application lifecycle
     async def shutdown(self):
         await self.line_api_client.close()
