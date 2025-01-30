@@ -1,4 +1,4 @@
-from google.cloud.firestore_v1.base_query import FieldFilter, 
+from google.cloud.firestore_v1.base_query import FieldFilter
 from datetime import datetime, timezone
 from typing import List
 from google.cloud import firestore
