@@ -37,7 +37,7 @@ class ConversationSessionStore:
         now = datetime.now(timezone.utc)
         query = (
             self.collection
-            .filter("user_id", "==", user_id)
+            .where(field_path="user_id", op_string="==", value=user_id)
             .order_by("updated_at", direction=firestore.Query.DESCENDING)
             .limit(1)
         )
@@ -70,7 +70,7 @@ class ConversationSessionStore:
 
         query = (
             self.collection
-            .filter("user_id", "==", user_id)
+            .where(field_path="user_id", op_string="==", value=user_id)
             .order_by("updated_at", direction=firestore.Query.DESCENDING)
             .limit(1)
         )
@@ -83,7 +83,7 @@ class ConversationSessionStore:
     async def get_user_conversations(self, user_id: str, count: int = 20) -> List[ConversationSession]:
         query = (
             self.collection
-            .filter("user_id", "==", user_id)
+            .where(field_path="user_id", op_string="==", value=user_id)
             .order_by("updated_at", direction=firestore.Query.DESCENDING)
             .limit(count)
         )
