@@ -26,8 +26,7 @@ class ConversationSession:
         )
 
 class ConversationSessionStore:
-    def __init__(self, timeout: float = 3600.0) -> None:
-        self.timeout = timeout
+    def __init__(self) -> None:
         self.db = firestore.AsyncClient()  # 非同期 Firestore クライアント
         self.collection = self.db.collection("conversation_sessions")  # Firestore のコレクション名
 
@@ -48,11 +47,6 @@ class ConversationSessionStore:
 
         db_session = docs[0].to_dict()
         session_obj = ConversationSession.from_dict(db_session)
-
-        # セッションがタイムアウトしている場合は新規作成 No need to time out for this trainer.
-        #if self.timeout > 0 and (now - session_obj.updated_at).total_seconds() > self.timeout:
-        #    return ConversationSession(user_id)
-
         return session_obj
 
     async def set_session(self, session: ConversationSession) -> None:
