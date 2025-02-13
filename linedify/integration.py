@@ -37,7 +37,6 @@ class LineDifyIntegrator:
         dify_base_url: str,
         dify_user: str,
         dify_type: DifyType = DifyType.Agent,
-        session_timeout: float = 3600.0,
         verbose: bool = False
     ) -> None:
 
@@ -65,7 +64,7 @@ class LineDifyIntegrator:
         }
 
         # Firestore の ConversationSessionStore を使用
-        self.conversation_session_store = ConversationSessionStore(timeout=session_timeout)
+        self.conversation_session_store = ConversationSessionStore()
 
         # Dify
         self.dify_agent = DifyAgent(
