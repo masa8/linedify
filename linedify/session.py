@@ -34,21 +34,25 @@ class ConversationSessionStore:
         if not user_id:
             raise ValueError("user_id is required")
 
-        query = (
-            self.collection
-            .where(filter=FieldFilter(field_path="user_id", op_string="==", value=user_id))
-            .limit(1)
-        )
-
-        docs = await query.get()
-
-        if not docs:
-            return ConversationSession(user_id)
-
-        db_session = docs[0].to_dict()
-        session_obj = ConversationSession.from_dict(db_session)
-        return session_obj
-
+        try:
+            query = (
+                self.collection
+                .where(filter=FieldFilter(field_path="user_id", op_string="==", value=user_id))
+                .limit(1)
+            )
+    
+            docs = await query.get()
+    
+            if not docs:
+                return ConversationSession(user_id)
+    
+            db_session = docs[0].to_dict()
+            session_obj = ConversationSession.from_dict(db_session)
+            return session_obj
+            
+        except Exception as e:
+            raise RuntimeError(f"Error fetching session for user_id={user_id}: {e}")
+            
     async def set_session(self, session: ConversationSession) -> None:
         if not session.user_id:
             raise ValueError("user_id is required")
