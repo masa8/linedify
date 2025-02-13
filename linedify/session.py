@@ -51,7 +51,7 @@ class ConversationSessionStore:
             return session_obj
             
         except Exception as e:
-            raise RuntimeError(f"Error fetching session for user_id={user_id}: {e}")
+            raise RuntimeError(f"Error fetching session for user_id={user_id}") from e
             
     async def set_session(self, session: ConversationSession) -> None:
         if not session.user_id:
