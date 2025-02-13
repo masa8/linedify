@@ -35,11 +35,9 @@ class ConversationSessionStore:
         if not user_id:
             raise ValueError("user_id is required")
 
-        now = datetime.now(timezone.utc)
         query = (
             self.collection
             .where(filter=FieldFilter(field_path="user_id", op_string="==", value=user_id))
-            .order_by("updated_at", direction=firestore.Query.DESCENDING)
             .limit(1)
         )
 
