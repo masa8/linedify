@@ -127,7 +127,7 @@ class DifyAgent:
 
         raise Exception("Workflow is not supported for now.")
 
-    async def invoke(self, *, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, user: str = None, start_as_new: bool = False) -> Tuple[str, Dict]:
+    async def invoke(self, *, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, user: str = None, start_as_new: bool = False, retries: int = 3, delay: float = 2.0) -> Tuple[str, Dict]:
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
@@ -136,22 +136,33 @@ class DifyAgent:
 
         if conversation_id and not start_as_new:
             payloads["conversation_id"] = conversation_id
+    
+        for attempt in range(retries):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    if self.verbose:
+                        logger.info(f"Request to Dify: {json.dumps(payloads, ensure_ascii=False)}")
+        
+                    async with session.post(
+                        self.base_url + "/chat-messages",
+                        headers=headers,
+                        json=payloads
+                    ) as response:
+        
+                        if response.status != 200:
+                            logger.error(f"Error response from Dify: {json.dumps(await response.json(), ensure_ascii=False)}")
+                        response.raise_for_status()
+        
+                        response_processor = self.response_processors[self.type]
+                        conversation_id, response_text, response_data = await response_processor(response)
+        
+                        return conversation_id, response_text, response_data
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(delay)
+                else:
+                    raise
 
-        async with aiohttp.ClientSession() as session:
-            if self.verbose:
-                logger.info(f"Request to Dify: {json.dumps(payloads, ensure_ascii=False)}")
-
-            async with session.post(
-                self.base_url + "/chat-messages",
-                headers=headers,
-                json=payloads
-            ) as response:
-
-                if response.status != 200:
-                    logger.error(f"Error response from Dify: {json.dumps(await response.json(), ensure_ascii=False)}")
-                response.raise_for_status()
-
-                response_processor = self.response_processors[self.type]
-                conversation_id, response_text, response_data = await response_processor(response)
-
-                return conversation_id, response_text, response_data
+        raise RuntimeError("Failed to get a successful response after retries.")
+    
