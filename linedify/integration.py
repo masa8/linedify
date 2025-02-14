@@ -185,7 +185,7 @@ class LineDifyIntegrator:
         return [TextMessage(text=text)]
 
     async def to_error_message_default(self, event: Event, ex: Exception, session: ConversationSession = None) -> List[Message]:
-        return [TextMessage(text="Error 🥲")]
+        return [TextMessage(text="あ!ごめん!ちょっとうたた寝してた..なあに?? むにゃむにゃ..")]
 
     async def on_message_handling_end_default(self, conversation_session: ConversationSession, request_text: str, response_text: str, response_data: any):
         if self.verbose:
