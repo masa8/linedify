@@ -27,7 +27,7 @@ class DifyAgent:
             DifyType.Agent: self.process_agent_response,
             DifyType.Chatbot: self.process_chatbot_response,
             DifyType.TextGenerator: self.process_textgenerator_response,
-            DifyType.Workflow: self.process_chatbot_response, #self.process_workflow_response
+            DifyType.Workflow: self.process_chatbot_response,  # self.process_workflow_response
         }
         self.conversation_ids = {}
 
@@ -49,16 +49,17 @@ class DifyAgent:
                     "upload_file_id": uploaded_image_id
                 }]
                 if not payloads["query"]:
-                    payloads["query"] = "." # Set dummy to prevent query empty error
-        
+                    # Set dummy to prevent query empty error
+                    payloads["query"] = "."
+
         return payloads
 
     async def upload_image(self, image_bytes: str, user: str = None) -> str:
         form_data = aiohttp.FormData()
         form_data.add_field("file",
-            image_bytes,
-            filename="image.png",
-            content_type="image/png")
+                            image_bytes,
+                            filename="image.png",
+                            content_type="image/png")
         form_data.add_field('user', user or self.default_user)
 
         async with aiohttp.ClientSession() as session:
@@ -69,7 +70,8 @@ class DifyAgent:
             ) as response:
                 response_json = await response.json()
                 if self.verbose:
-                    logger.info(f"File upload response: {json.dumps(response_json, ensure_ascii=False)}")
+                    logger.info(
+                        f"File upload response: {json.dumps(response_json, ensure_ascii=False)}")
                 response.raise_for_status()
                 return response_json["id"]
 
@@ -85,7 +87,8 @@ class DifyAgent:
             chunk = json.loads(decoded_r[5:])
 
             if self.verbose:
-                logger.debug(f"Chunk from Dify: {json.dumps(chunk, ensure_ascii=False)}")
+                logger.debug(
+                    f"Chunk from Dify: {json.dumps(chunk, ensure_ascii=False)}")
 
             event_type = chunk["event"]
 
@@ -98,7 +101,7 @@ class DifyAgent:
                     response_data["tool"] = tool
                 if tool_input := chunk.get("tool_input"):
                     response_data["tool_input"] = tool_input
-    
+
             elif event_type == "message_end":
                 if retriever_resources := chunk["metadata"].get("retriever_resources"):
                     response_data["retriever_resources"] = retriever_resources
@@ -109,7 +112,8 @@ class DifyAgent:
         response_json = await response.json()
 
         if self.verbose:
-            logger.info(f"Response from Dify: {json.dumps(response_json, ensure_ascii=False)}")
+            logger.info(
+                f"Response from Dify: {json.dumps(response_json, ensure_ascii=False)}")
 
         conversation_id = response_json["conversation_id"]
         response_text = response_json["answer"]
@@ -127,42 +131,34 @@ class DifyAgent:
 
         raise Exception("Workflow is not supported for now.")
 
-    async def invoke(self, *, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, user: str = None, start_as_new: bool = False, retries: int = 3, delay: float = 2.0) -> Tuple[str, Dict]:
+    async def invoke(self, *, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, user: str = None) -> Tuple[str, Dict]:
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
 
         payloads = await self.make_payloads(text=text, image_bytes=image, inputs=inputs, user=user)
 
-        if conversation_id and not start_as_new:
+        if conversation_id:
             payloads["conversation_id"] = conversation_id
-    
-        for attempt in range(retries):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    if self.verbose:
-                        logger.info(f"Request to Dify: {json.dumps(payloads, ensure_ascii=False)}")
-        
-                    async with session.post(
-                        self.base_url + "/chat-messages",
-                        headers=headers,
-                        json=payloads
-                    ) as response:
-        
-                        if response.status != 200:
-                            logger.error(f"Error response from Dify: {json.dumps(await response.json(), ensure_ascii=False)}")
-                        response.raise_for_status()
-        
-                        response_processor = self.response_processors[self.type]
-                        conversation_id, response_text, response_data = await response_processor(response)
-        
-                        return conversation_id, response_text, response_data
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                logger.warning(f"Attempt {attempt + 1} failed: {e}")
-                if attempt < retries - 1:
-                    await asyncio.sleep(delay)
-                else:
-                    raise
+            logger.info(f"Conversation ID: {conversation_id}")
 
-        raise RuntimeError("Failed to get a successful response after retries.")
-    
+        async with aiohttp.ClientSession() as session:
+            if self.verbose:
+                logger.info(
+                    f"Request to Dify: {json.dumps(payloads, ensure_ascii=False)}")
+
+            async with session.post(
+                self.base_url + "/chat-messages",
+                headers=headers,
+                json=payloads
+            ) as response:
+                if response.status != 200:
+                    logger.error(f"Error response from Dify: {json.dumps(await response.json(), ensure_ascii=False)}")
+                response.raise_for_status()
+
+                response_processor = self.response_processors[self.type]
+                conversation_id, response_text, response_data = await response_processor(response)
+                logger.info(
+                    f"Response Data: {json.dumps(response_data, ensure_ascii=False)}")
+
+                return conversation_id, response_text, response_data
