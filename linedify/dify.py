@@ -3,7 +3,7 @@ import json
 from logging import getLogger, NullHandler
 from typing import Dict, Tuple
 import aiohttp
-
+import asyncio
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
