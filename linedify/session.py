@@ -1,8 +1,12 @@
 from google.cloud.firestore_v1.base_query import FieldFilter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List
 from google.cloud import firestore
 import asyncio
+
+class PaymentError(Exception):
+    """Custom exception to indicate a payment-related error."""
+    pass
 
 class ConversationSession:
     def __init__(self, user_id: str, conversation_id: str = None, updated_at: datetime = None) -> None:
@@ -48,6 +52,12 @@ class ConversationSessionStore:
     
             db_session = docs[0].to_dict()
             session_obj = ConversationSession.from_dict(db_session)
+
+            now = datetime.now(timezone.utc)
+            two_weeks_ago = now - timedelta(weeks=2)
+            if session_obj.updated_at < two_weeks_ago and getattr(session_obj, 'state_payment', False) == True:
+                raise PaymentError("Session has timed out (more than 2 weeks since last update).")
+            
             return session_obj
             
         except Exception as e:
