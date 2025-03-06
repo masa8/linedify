@@ -23,7 +23,8 @@ from linebot.v3.webhooks import (
 )
 
 from .dify import DifyAgent, DifyType
-from .session import ConversationSession, ConversationSessionStore  # Firestore 版をインポート
+# Firestore 版をインポート
+from .session import ConversationSession, ConversationSessionStore, PaymentError
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -31,14 +32,14 @@ logger.addHandler(NullHandler())
 
 class LineDifyIntegrator:
     def __init__(self, *,
-        line_channel_access_token: str,
-        line_channel_secret: str,
-        dify_api_key: str,
-        dify_base_url: str,
-        dify_user: str,
-        dify_type: DifyType = DifyType.Agent,
-        verbose: bool = False
-    ) -> None:
+                 line_channel_access_token: str,
+                 line_channel_secret: str,
+                 dify_api_key: str,
+                 dify_base_url: str,
+                 dify_user: str,
+                 dify_type: DifyType = DifyType.Agent,
+                 verbose: bool = False
+                 ) -> None:
 
         self.verbose = verbose
 
@@ -95,13 +96,14 @@ class LineDifyIntegrator:
                     )
 
             except Exception as eex:
-                logger.error(f"Error at replying error message for event: {eex}\n{format_exc()}")
+                logger.error(
+                    f"Error at replying error message for event: {eex}\n{format_exc()}")
 
     async def process_event(self, event: Event):
         try:
             if validation_messages := await self._validate_event(event):
                 return validation_messages
-            
+
             else:
                 event_handler = self._event_handlers.get(event.type)
                 if event_handler:
@@ -117,11 +119,13 @@ class LineDifyIntegrator:
         conversation_session = None
         try:
             if self.verbose:
-                logger.info(f"Request from LINE: {json.dumps(event.to_dict(), ensure_ascii=False)}")
+                logger.info(
+                    f"Request from LINE: {json.dumps(event.to_dict(), ensure_ascii=False)}")
 
             parse_message = self._message_parsers.get(event.message.type)
             if not parse_message:
-                raise Exception(f"Unhandled message type: {event.message.type}")
+                raise Exception(
+                    f"Unhandled message type: {event.message.type}")
 
             request_text, image_bytes = await parse_message(event.message)
             conversation_session = await self.conversation_session_store.get_session(event.source.user_id)
@@ -141,21 +145,29 @@ class LineDifyIntegrator:
             response_messages = await self._to_reply_message(text, data, conversation_session)
 
             if self.verbose:
-                logger.info(f"Response to LINE: {', '.join([json.dumps(m.to_dict(), ensure_ascii=False) for m in response_messages])}")
+                logger.info(
+                    f"Response to LINE: {', '.join([json.dumps(m.to_dict(), ensure_ascii=False) for m in response_messages])}")
 
             await self._on_message_handling_end(conversation_session, request_text, text, data)
 
             return response_messages
 
+        except PaymentError as ex:
+            logger.error(
+                f"Error at handle_message_event: {ex}\n{format_exc()}")
+            return "試用期間が終了しました"
+
         except Exception as ex:
-            logger.error(f"Error at handle_message_event: {ex}\n{format_exc()}")
+            logger.error(
+                f"Error at handle_message_event: {ex}\n{format_exc()}")
 
             try:
                 error_message = await self._to_error_message(event, ex, conversation_session)
                 return error_message
 
             except Exception as eex:
-                logger.error(f"Error at replying error message for message event: {eex}\n{format_exc()}")
+                logger.error(
+                    f"Error at replying error message for message event: {eex}\n{format_exc()}")
 
     async def event_handler_default(self, event: Event):
         logger.warning(f"Unhandled event type: {event.type}")
@@ -189,7 +201,8 @@ class LineDifyIntegrator:
 
     async def on_message_handling_end_default(self, conversation_session: ConversationSession, request_text: str, response_text: str, response_data: any):
         if self.verbose:
-            logger.info(f"on_message_handling_end_default: @{conversation_session.user_id} ({conversation_session.user_id}): {request_text} -> {response_text}")
+            logger.info(
+                f"on_message_handling_end_default: @{conversation_session.user_id} ({conversation_session.user_id}): {request_text} -> {response_text}")
 
     # Application lifecycle
     async def shutdown(self):
