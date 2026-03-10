@@ -3,7 +3,6 @@ import json
 from logging import getLogger, NullHandler
 from typing import Dict, Tuple
 import aiohttp
-import asyncio
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -190,23 +189,63 @@ class DifyAgent:
             logger.info(
                 f"Invoking Dify API at {self.base_url}/chat-messages with payload: {json.dumps(payloads, ensure_ascii=False)}"
             )
-            async with session.post(
-                self.base_url + "/chat-messages", headers=headers, json=payloads
-            ) as response:
-                if response.status != 200:
-                    logger.error(
-                        f"Error response from Dify: {json.dumps(await response.json(), ensure_ascii=False)}"
+
+            # If stored conversation_id no longer exists on Dify the API returns a 404 with
+            # code 'not_found' and message containing 'Conversation Not Exists'. In that case
+            # retry once without conversation_id to create a new conversation thread.
+            tried_without_conversation = False
+            while True:
+                async with session.post(
+                    self.base_url + "/chat-messages", headers=headers, json=payloads
+                ) as response:
+                    # Handle explicit 404 that indicates conversation missing
+                    if response.status == 404:
+                        try:
+                            resp_json = await response.json()
+                        except Exception:
+                            resp_json = None
+
+                        if (
+                            resp_json
+                            and resp_json.get("code") == "not_found"
+                            and "Conversation Not Exists"
+                            in resp_json.get("message", "")
+                        ):
+                            if (
+                                "conversation_id" in payloads
+                                and not tried_without_conversation
+                            ):
+                                logger.warning(
+                                    "Dify reported stored conversation does not exist — retrying without conversation_id to start a new conversation"
+                                )
+                                # remove conversation_id and retry once
+                                del payloads["conversation_id"]
+                                tried_without_conversation = True
+                                continue
+
+                    # Log non-200 responses for diagnostics
+                    if response.status != 200:
+                        try:
+                            resp_json = await response.json()
+                            logger.error(
+                                f"Error response from Dify: {json.dumps(resp_json, ensure_ascii=False)}"
+                            )
+                        except Exception:
+                            body = await response.text()
+                            logger.error(
+                                f"Error response from Dify: status={response.status}, body={body}"
+                            )
+
+                    response.raise_for_status()
+
+                    response_processor = self.response_processors[self.type]
+                    (
+                        conversation_id,
+                        response_text,
+                        response_data,
+                    ) = await response_processor(response)
+                    logger.info(
+                        f"Response Data: {json.dumps(response_data, ensure_ascii=False)}"
                     )
-                response.raise_for_status()
 
-                response_processor = self.response_processors[self.type]
-                (
-                    conversation_id,
-                    response_text,
-                    response_data,
-                ) = await response_processor(response)
-                logger.info(
-                    f"Response Data: {json.dumps(response_data, ensure_ascii=False)}"
-                )
-
-                return conversation_id, response_text, response_data
+                    return conversation_id, response_text, response_data
